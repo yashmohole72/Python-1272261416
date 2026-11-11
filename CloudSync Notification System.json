@@ -1,0 +1,1193 @@
+{
+  "name": "CloudSync Notification System",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cloudsync-backup-events",
+        "options": {}
+      },
+      "id": "0f8f45e7-b8ad-4e6c-8ddd-009ec98cd9a4",
+      "name": "CloudSync Event",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "009c8c3f-7b4a-4e03-88fd-1f48c46046e5"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "event_type",
+              "type": "string",
+              "value": "={{ (() => { const t = String($json.body.event_type || $json.body.event || $json.body.status || '').toLowerCase(); if (t.includes('corrupt')) return 'file_corrupted'; if (t.includes('fail') || t.includes('error')) return 'backup_failed'; if (t.includes('success') || t.includes('complete')) return 'backup_success'; return t; })() }}"
+            },
+            {
+              "id": "a2",
+              "name": "user_email",
+              "type": "string",
+              "value": "={{ $json.body.user_email }}"
+            },
+            {
+              "id": "a3",
+              "name": "user_name",
+              "type": "string",
+              "value": "={{ $json.body.user_name || 'there' }}"
+            },
+            {
+              "id": "a4",
+              "name": "file_name",
+              "type": "string",
+              "value": "={{ $json.body.file_name }}"
+            },
+            {
+              "id": "a5",
+              "name": "event_time",
+              "type": "string",
+              "value": "={{ $json.body.time || $now.toISO() }}"
+            },
+            {
+              "id": "a6",
+              "name": "deletion_date",
+              "type": "string",
+              "value": "={{ $json.body.deletion_date || '' }}"
+            },
+            {
+              "id": "a7",
+              "name": "error_message",
+              "type": "string",
+              "value": "={{ $json.body.error_message || $json.body.error || '' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a38d362e-202d-40c2-8972-b19f2eb3e47b",
+      "name": "Normalize Event",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        272,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.event_type }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "backup_success"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Backup succeeded"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.event_type }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "backup_failed"
+                  },
+                  {
+                    "leftValue": "={{ $json.event_type }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "file_corrupted"
+                  }
+                ],
+                "combinator": "or"
+              },
+              "renameOutput": true,
+              "outputKey": "Upload failed / corrupted"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2d9a6721-d526-485c-a6db-a28f32ff5456",
+      "name": "Route by Event Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        496,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "nEw6zfzxBQyhW9Qt",
+          "cachedResultName": "cloudsync_files"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_email",
+              "keyValue": "={{ $json.user_email }}"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "id": "3546f777-b3b4-4cb4-a8f7-63ec327878c1",
+      "name": "Find User Records",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        512
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const ev = $('Normalize Event').first().json;\nconst email = String(ev.user_email || '').trim().toLowerCase();\nconst match = $input.all().map((i) => i.json).find((r) => r && r.id && String(r.user_email || '').trim().toLowerCase() === email && String(r.file_name || '') === String(ev.file_name || ''));\nreturn [{ json: Object.assign({}, ev, { existing_row_id: match ? match.id : null }) }];"
+      },
+      "id": "17785d24-9696-4c32-a1ae-e633473d7ca7",
+      "name": "Check Existing Record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        944,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ !!$json.existing_row_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a0edaa04-96d9-4782-b32c-6317abc301dc",
+      "name": "Record Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1168,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "nEw6zfzxBQyhW9Qt",
+          "cachedResultName": "cloudsync_files"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyValue": "={{ $json.existing_row_id }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "attemptToConvertTypes": true,
+          "convertFieldsToString": false,
+          "value": {
+            "user_email": "={{ $json.user_email }}",
+            "user_name": "={{ $json.user_name }}",
+            "file_name": "={{ $json.file_name }}",
+            "status": "backup_success",
+            "event_time": "={{ $json.event_time }}",
+            "deletion_date": "={{ $json.deletion_date }}",
+            "error_message": "",
+            "backup_summary_sent": false,
+            "reminder_7_sent": false,
+            "reminder_3_sent": false,
+            "reminder_1_sent": false,
+            "deleted_notice_sent": false
+          },
+          "schema": [
+            {
+              "id": "user_email",
+              "displayName": "user_email",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "user_name",
+              "displayName": "user_name",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "file_name",
+              "displayName": "file_name",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "event_time",
+              "displayName": "event_time",
+              "type": "dateTime",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "deletion_date",
+              "displayName": "deletion_date",
+              "type": "dateTime",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "error_message",
+              "displayName": "error_message",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "backup_summary_sent",
+              "displayName": "backup_summary_sent",
+              "type": "boolean",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "reminder_7_sent",
+              "displayName": "reminder_7_sent",
+              "type": "boolean",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "reminder_3_sent",
+              "displayName": "reminder_3_sent",
+              "type": "boolean",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "reminder_1_sent",
+              "displayName": "reminder_1_sent",
+              "type": "boolean",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "deleted_notice_sent",
+              "displayName": "deleted_notice_sent",
+              "type": "boolean",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d8736dad-4b69-49eb-922d-a00c9d5f684c",
+      "name": "Update Existing Record",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1392,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "nEw6zfzxBQyhW9Qt",
+          "cachedResultName": "cloudsync_files"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "attemptToConvertTypes": true,
+          "convertFieldsToString": false,
+          "value": {
+            "user_email": "={{ $json.user_email }}",
+            "user_name": "={{ $json.user_name }}",
+            "file_name": "={{ $json.file_name }}",
+            "status": "backup_success",
+            "event_time": "={{ $json.event_time }}",
+            "deletion_date": "={{ $json.deletion_date }}",
+            "error_message": "",
+            "backup_summary_sent": false,
+            "reminder_7_sent": false,
+            "reminder_3_sent": false,
+            "reminder_1_sent": false,
+            "deleted_notice_sent": false
+          },
+          "schema": [
+            {
+              "id": "user_email",
+              "displayName": "user_email",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "user_name",
+              "displayName": "user_name",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "file_name",
+              "displayName": "file_name",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "event_time",
+              "displayName": "event_time",
+              "type": "dateTime",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "deletion_date",
+              "displayName": "deletion_date",
+              "type": "dateTime",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "error_message",
+              "displayName": "error_message",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "backup_summary_sent",
+              "displayName": "backup_summary_sent",
+              "type": "boolean",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "reminder_7_sent",
+              "displayName": "reminder_7_sent",
+              "type": "boolean",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "reminder_3_sent",
+              "displayName": "reminder_3_sent",
+              "type": "boolean",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "reminder_1_sent",
+              "displayName": "reminder_1_sent",
+              "type": "boolean",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "deleted_notice_sent",
+              "displayName": "deleted_notice_sent",
+              "type": "boolean",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ffeeb783-5db5-4e4e-8073-f3bceade28a1",
+      "name": "Insert New Record",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1392,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.user_email }}",
+        "subject": "={{ $json.event_type === 'file_corrupted' ? 'CloudSync alert: ' + $json.file_name + ' is corrupted' : 'CloudSync alert: backup failed for ' + $json.file_name }}",
+        "message": "=<p>Hi {{ $json.user_name }},</p><p>{{ $json.event_type === 'file_corrupted' ? 'We detected that your file <b>' + $json.file_name + '</b> is corrupted and could not be backed up to the cloud.' : 'We could not back up your file <b>' + $json.file_name + '</b> to the cloud.' }}</p><p><b>Time:</b> {{ DateTime.fromISO(String($json.event_time)).isValid ? DateTime.fromISO(String($json.event_time)).setZone('Asia/Kolkata').toFormat('dd LLL yyyy, HH:mm') : $json.event_time }}{{ $json.error_message ? '<br><b>Details:</b> ' + $json.error_message : '' }}</p><p>Please check the file and try again. CloudSync will retry on the next backup run.</p><p>- The CloudSync Team</p>",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "CloudSync"
+        }
+      },
+      "id": "e3a7eb91-3481-4c13-9bb9-b792dd1843ba",
+      "name": "Send Failure Alert",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        720,
+        320
+      ],
+      "webhookId": "289a75ce-1976-46aa-9d21-32ddbd834134",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Ap9iq7G0eAn6NLro",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "daysInterval": 2,
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "id": "135bc6cf-e027-4922-9d33-b9cdc57f6e4d",
+      "name": "Every 2 Days",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "nEw6zfzxBQyhW9Qt",
+          "cachedResultName": "cloudsync_files"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "status",
+              "keyValue": "backup_success"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "id": "7c83d048-809f-4f0f-b8a1-c43845f6fcc7",
+      "name": "Get Backed-up Files (Summary)",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        288,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const tz = 'Asia/Kolkata';\nconst toDt = (v) => (v instanceof Date ? DateTime.fromJSDate(v) : DateTime.fromISO(String(v)));\nconst fmt = (v, f) => {\n  if (!v) return '-';\n  const d = toDt(v);\n  return d.isValid ? d.setZone(tz).toFormat(f) : String(v);\n};\nconst rows = $input.all().map((i) => i.json).filter((r) => r && r.user_email && r.backup_summary_sent !== true);\nconst byUser = {};\nfor (const r of rows) {\n  const key = String(r.user_email).trim().toLowerCase();\n  if (!byUser[key]) byUser[key] = { user_email: String(r.user_email).trim(), user_name: r.user_name || 'there', files: [] };\n  byUser[key].files.push(r);\n}\nreturn Object.values(byUser).map((u) => {\n  const rowsHtml = u.files\n    .map((f) => '<tr><td>' + f.file_name + '</td><td>' + fmt(f.event_time, 'dd LLL yyyy, HH:mm') + '</td><td>' + fmt(f.deletion_date, 'dd LLL yyyy') + '</td></tr>')\n    .join('');\n  const html =\n    '<p>Hi ' + u.user_name + ',</p>' +\n    '<p>Good news! CloudSync successfully backed up <b>' + u.files.length + '</b> file(s) since your last update:</p>' +\n    '<table border=\"1\" cellpadding=\"6\" cellspacing=\"0\" style=\"border-collapse:collapse\">' +\n    '<tr><th>File</th><th>Backed up at</th><th>Scheduled deletion</th></tr>' + rowsHtml + '</table>' +\n    '<p>Your files are safe in the cloud.</p><p>- The CloudSync Team</p>';\n  return {\n    json: {\n      user_email: u.user_email,\n      user_name: u.user_name,\n      file_count: u.files.length,\n      subject: 'CloudSync: ' + u.files.length + ' file(s) backed up successfully',\n      html,\n      row_ids: u.files.map((f) => f.id),\n    },\n  };\n});"
+      },
+      "id": "c5cfd9bc-dc7e-454f-aff0-02bcd9cc3346",
+      "name": "Build Backup Summaries",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        512,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.user_email }}",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "CloudSync"
+        }
+      },
+      "id": "ba97e989-b2aa-4d28-91c0-c9a4e0e462cd",
+      "name": "Send Backup Summary",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        736,
+        352
+      ],
+      "webhookId": "23f7aaf0-48a7-4507-9ddb-20bfc445fab9",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Ap9iq7G0eAn6NLro",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return $('Build Backup Summaries').all().flatMap((i) => (i.json.row_ids || []).map((id) => ({ json: { row_id: id } })));"
+      },
+      "id": "6b9c4ec1-3428-4f28-85a2-4cd7377243fd",
+      "name": "List Summarized Files",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "nEw6zfzxBQyhW9Qt",
+          "cachedResultName": "cloudsync_files"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyValue": "={{ $json.row_id }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "attemptToConvertTypes": true,
+          "convertFieldsToString": false,
+          "value": {
+            "backup_summary_sent": true
+          },
+          "schema": [
+            {
+              "id": "backup_summary_sent",
+              "displayName": "backup_summary_sent",
+              "type": "boolean",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b61ca63d-8829-44e5-bd30-fb0a3d056c07",
+      "name": "Mark Summary Sent",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1184,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9,
+              "triggerAtMinute": 30
+            }
+          ]
+        }
+      },
+      "id": "d89d1be8-5759-4a71-9e4a-eb084ea9d627",
+      "name": "Daily Deletion Check",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "nEw6zfzxBQyhW9Qt",
+          "cachedResultName": "cloudsync_files"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "status",
+              "keyValue": "backup_success"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "id": "47b5e12e-3733-47ed-b588-df29f9406617",
+      "name": "Get Backed-up Files (Deletion)",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        64,
+        1232
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const tz = 'Asia/Kolkata';\nconst today = DateTime.now().setZone(tz).startOf('day');\nconst toDt = (v) => (v instanceof Date ? DateTime.fromJSDate(v) : DateTime.fromISO(String(v)));\nconst groups = {};\nfor (const item of $input.all()) {\n  const r = item.json;\n  if (!r || !r.user_email || !r.deletion_date) continue;\n  const del = toDt(r.deletion_date);\n  if (!del.isValid) continue;\n  const delDay = del.setZone(tz).startOf('day');\n  const days = Math.round(delDay.diff(today, 'days').days);\n  let notice = null;\n  if (days <= 0) {\n    if (r.deleted_notice_sent !== true) notice = 'deleted';\n  } else if (days === 1) {\n    if (r.reminder_1_sent !== true) notice = 'r1';\n  } else if (days <= 3) {\n    if (r.reminder_3_sent !== true) notice = 'r3';\n  } else if (days <= 7) {\n    if (r.reminder_7_sent !== true) notice = 'r7';\n  }\n  if (!notice) continue;\n  const level = { r7: 1, r3: 2, r1: 3, deleted: 4 }[notice];\n  const groupDays = notice === 'deleted' ? 0 : days;\n  const key = String(r.user_email).trim().toLowerCase() + '|' + notice + '|' + groupDays;\n  if (!groups[key]) {\n    groups[key] = { user_email: String(r.user_email).trim(), user_name: r.user_name || 'there', notice, days: groupDays, files: [], rows: [] };\n  }\n  groups[key].files.push({ file_name: r.file_name, deletion_date: delDay.toFormat('dd LLL yyyy') });\n  groups[key].rows.push({\n    row_id: r.id,\n    set_r7: r.reminder_7_sent === true || level >= 1,\n    set_r3: r.reminder_3_sent === true || level >= 2,\n    set_r1: r.reminder_1_sent === true || level >= 3,\n    set_deleted: r.deleted_notice_sent === true || level >= 4,\n  });\n}\nreturn Object.values(groups).map((g) => {\n  const n = g.files.length;\n  const list = '<ul>' + g.files.map((f) => '<li><b>' + f.file_name + '</b> (deletion date: ' + f.deletion_date + ')</li>').join('') + '</ul>';\n  let subject;\n  let body;\n  if (g.notice === 'deleted') {\n    subject = 'CloudSync: ' + n + ' file(s) have been deleted';\n    body = '<p>The following file(s) reached their auto-deletion date and have been removed from your CloudSync backup:</p>' + list +\n      '<p>If you still need them, please upload them again.</p>';\n  } else {\n    const when = g.days === 1 ? 'tomorrow (in 1 day)' : 'in ' + g.days + ' days';\n    subject = 'CloudSync reminder: ' + n + ' file(s) will be deleted ' + when;\n    body = '<p>This is a reminder that the following file(s) will be automatically deleted ' + when + ':</p>' + list +\n      '<p>Download or re-back up anything you want to keep before the deletion date.</p>';\n  }\n  const html = '<p>Hi ' + g.user_name + ',</p>' + body + '<p>- The CloudSync Team</p>';\n  return { json: { user_email: g.user_email, user_name: g.user_name, notice_type: g.notice, days_left: g.days, file_count: n, subject, html, rows: g.rows } };\n});"
+      },
+      "id": "48fb9996-7a3b-4261-8857-9c9f82d040bc",
+      "name": "Build Deletion Reminders",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        288,
+        1232
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.user_email }}",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "CloudSync"
+        }
+      },
+      "id": "dc353c23-a16f-4292-88e8-b334da4736b2",
+      "name": "Send Deletion Notice",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        512,
+        1232
+      ],
+      "webhookId": "80b3ccfe-908f-40b7-a7a6-c38dd31e7e08",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Ap9iq7G0eAn6NLro",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return $('Build Deletion Reminders').all().flatMap((i) => (i.json.rows || []).map((r) => ({ json: r })));"
+      },
+      "id": "56164b9d-329f-43a3-9789-a135324059c7",
+      "name": "List Reminded Files",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        736,
+        1232
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "nEw6zfzxBQyhW9Qt",
+          "cachedResultName": "cloudsync_files"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyValue": "={{ $json.row_id }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "attemptToConvertTypes": true,
+          "convertFieldsToString": false,
+          "value": {
+            "reminder_7_sent": "={{ $json.set_r7 }}",
+            "reminder_3_sent": "={{ $json.set_r3 }}",
+            "reminder_1_sent": "={{ $json.set_r1 }}",
+            "deleted_notice_sent": "={{ $json.set_deleted }}"
+          },
+          "schema": [
+            {
+              "id": "reminder_7_sent",
+              "displayName": "reminder_7_sent",
+              "type": "boolean",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "reminder_3_sent",
+              "displayName": "reminder_3_sent",
+              "type": "boolean",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "reminder_1_sent",
+              "displayName": "reminder_1_sent",
+              "type": "boolean",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "deleted_notice_sent",
+              "displayName": "deleted_notice_sent",
+              "type": "boolean",
+              "display": true,
+              "removed": false,
+              "readOnly": false,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "064f12bf-ef2c-4d25-a404-a5d86c156712",
+      "name": "Mark Reminders Sent",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        1232
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "CloudSync Event": {
+      "main": [
+        [
+          {
+            "node": "Normalize Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Event": {
+      "main": [
+        [
+          {
+            "node": "Route by Event Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Event Type": {
+      "main": [
+        [
+          {
+            "node": "Find User Records",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Failure Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find User Records": {
+      "main": [
+        [
+          {
+            "node": "Check Existing Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Existing Record": {
+      "main": [
+        [
+          {
+            "node": "Record Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Exists?": {
+      "main": [
+        [
+          {
+            "node": "Update Existing Record",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Insert New Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every 2 Days": {
+      "main": [
+        [
+          {
+            "node": "Get Backed-up Files (Summary)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Backed-up Files (Summary)": {
+      "main": [
+        [
+          {
+            "node": "Build Backup Summaries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Backup Summaries": {
+      "main": [
+        [
+          {
+            "node": "Send Backup Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Backup Summary": {
+      "main": [
+        [
+          {
+            "node": "List Summarized Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Summarized Files": {
+      "main": [
+        [
+          {
+            "node": "Mark Summary Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Deletion Check": {
+      "main": [
+        [
+          {
+            "node": "Get Backed-up Files (Deletion)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Backed-up Files (Deletion)": {
+      "main": [
+        [
+          {
+            "node": "Build Deletion Reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Deletion Reminders": {
+      "main": [
+        [
+          {
+            "node": "Send Deletion Notice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Deletion Notice": {
+      "main": [
+        [
+          {
+            "node": "List Reminded Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Reminded Files": {
+      "main": [
+        [
+          {
+            "node": "Mark Reminders Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "5c59a3c8-7ba7-443c-b594-36a69696eac6",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ffcf5b4265ffb933d6742e45934e19573439cce24f744e7357c9be5503c687f8"
+  },
+  "nodeGroups": [
+    {
+      "id": "e5c02aa8-c629-4569-8f33-08b997cec744",
+      "name": "Process backup events",
+      "nodeIds": [
+        "a38d362e-202d-40c2-8972-b19f2eb3e47b",
+        "2d9a6721-d526-485c-a6db-a28f32ff5456",
+        "3546f777-b3b4-4cb4-a8f7-63ec327878c1",
+        "17785d24-9696-4c32-a1ae-e633473d7ca7",
+        "a0edaa04-96d9-4782-b32c-6317abc301dc",
+        "d8736dad-4b69-49eb-922d-a00c9d5f684c",
+        "ffeeb783-5db5-4e4e-8073-f3bceade28a1",
+        "e3a7eb91-3481-4c13-9bb9-b792dd1843ba"
+      ],
+      "description": "Stores each successful backup with its deletion date; emails the user right away when an upload fails or a file is corrupted"
+    },
+    {
+      "id": "0c7cfb7d-be53-4729-8676-003a8ab9456c",
+      "name": "Email backup summaries",
+      "nodeIds": [
+        "7c83d048-809f-4f0f-b8a1-c43845f6fcc7",
+        "c5cfd9bc-dc7e-454f-aff0-02bcd9cc3346",
+        "ba97e989-b2aa-4d28-91c0-c9a4e0e462cd",
+        "6b9c4ec1-3428-4f28-85a2-4cd7377243fd",
+        "b61ca63d-8829-44e5-bd30-fb0a3d056c07"
+      ],
+      "description": "Every 2 days, one email per user listing files backed up since the last summary, then marks them as reported"
+    },
+    {
+      "id": "1dea4e19-153d-4b93-b09e-598af810a156",
+      "name": "Send deletion reminders",
+      "nodeIds": [
+        "47b5e12e-3733-47ed-b588-df29f9406617",
+        "48fb9996-7a3b-4261-8857-9c9f82d040bc",
+        "dc353c23-a16f-4292-88e8-b334da4736b2",
+        "56164b9d-329f-43a3-9789-a135324059c7",
+        "064f12bf-ef2c-4d25-a404-a5d86c156712"
+      ],
+      "description": "Daily: warns users 7, 3 and 1 day before auto-deletion and confirms once files are deleted; each notice is sent only once"
+    }
+  ],
+  "id": "rS8h9r88pcrHQbQB",
+  "tags": []
+}
